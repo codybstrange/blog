@@ -35,9 +35,11 @@ func main() {
 
   commands.register("login",    handlerLogin)
   commands.register("register", handlerRegister)
+  commands.register("reset", handlerReset)
+  commands.register("users", handlerListUsers)
 
   args := os.Args[1:]
-  if len(args) < 2 {
+  if len(args) < 1 {
     log.Fatal("Usage: cli <command> [args...]")
   }
   cmd := command {name: args[0], args: args[1:]}

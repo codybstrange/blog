@@ -23,6 +23,14 @@ func handlerLogin(s *state, cmd command) error {
   return nil
 }
 
+func handlerReset(s *state, cmd command) error {
+  if err := s.db.DeleteAllUsers(context.Background()); err != nil {
+    return fmt.Errorf("Issue with reseting the database: %w", err)
+  }
+  fmt.Println("Cleared database successfully")
+  return nil
+}
+
 func handlerRegister(s *state, cmd command) error {
   if len(cmd.args) != 1 {
     return fmt.Errorf("Command must have at least one argument")
@@ -43,5 +51,20 @@ func handlerRegister(s *state, cmd command) error {
   if err := s.cfg.SetUser(name); err != nil {
     return fmt.Errorf("couldn't set user: %w", err)
   } 
+  return nil
+}
+
+func handlerListUsers(s *state, cmd command) error {
+  users, err := s.db.GetAllUsers(context.Background()); 
+  if err != nil {
+    return fmt.Errorf("Issue with retrieving user list from database: %w", err)
+  }
+  for _, u := range users {
+    if u == s.cfg.CurrentUserName {
+      fmt.Printf("* %s (current)\n", u)
+    } else {
+      fmt.Printf("* %s\n", u)
+    }
+  }
   return nil
 }
