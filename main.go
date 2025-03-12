@@ -1,8 +1,10 @@
 package main
 
 import (
-  "github.com/codybstrange/blog-aggregator/internal/config"
+  "github.com/codybstrange/blog/internal/config"
   "fmt"
+  "os"
+  "log"
 )
 
 
@@ -12,15 +14,22 @@ func main() {
     fmt.Printf("Error in Read function: %v", err)
     return
   }
-  state := state{cfg: &cfg}
-  
-  cfg, err = config.Read()
-  if err != nil {
-    fmt.Printf("Error in Read function: %v", err)
-    return
+  s := &state{cfg: &cfg}
+  commands := commands {
+    handlers: make(map[string]func(*state, command) error),
   }
-  fmt.Printf("db_url: %v\n", cfg.DBUrl)
-  fmt.Printf("current_user_name: %v\n", cfg.CurrentUserName)
-  
-  return
+
+  commands.register("login", handlerLogin)
+
+  args := os.Args[1:]
+  if len(args) < 2 {
+    log.Fatal("Usage: cli <command> [args...]")
+    os.Exit(1)
+  }
+  cmd := command {name: args[0], args: args[1:]}
+  if err := commands.run(s, cmd); err != nil {
+    log.Fatal(err)
+  }
+
+  os.Exit(0)
 }
