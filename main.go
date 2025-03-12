@@ -1,12 +1,19 @@
 package main
-
+ 
 import (
   "github.com/codybstrange/blog/internal/config"
+  "github.com/codybstrange/blog/internal/database"
   "fmt"
   "os"
   "log"
+  "database/sql"
+  _ "github.com/lib/pq"
 )
 
+type state struct {
+  db  *database.Queries
+  cfg *config.Config
+}
 
 func main() {
   cfg, err := config.Read()
@@ -14,17 +21,24 @@ func main() {
     fmt.Printf("Error in Read function: %v", err)
     return
   }
-  s := &state{cfg: &cfg}
+  db, err := sql.Open("postgres", cfg.DBUrl)
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  dbQueries := database.New(db)
+
+  s := &state{db : dbQueries, cfg: &cfg}
   commands := commands {
     handlers: make(map[string]func(*state, command) error),
   }
 
-  commands.register("login", handlerLogin)
+  commands.register("login",    handlerLogin)
+  commands.register("register", handlerRegister)
 
   args := os.Args[1:]
   if len(args) < 2 {
     log.Fatal("Usage: cli <command> [args...]")
-    os.Exit(1)
   }
   cmd := command {name: args[0], args: args[1:]}
   if err := commands.run(s, cmd); err != nil {
