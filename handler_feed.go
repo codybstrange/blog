@@ -1,8 +1,8 @@
 package main
 
 import (
+  "database/sql"
   "context"
-  "github.com/codybstrange/blog/internal/rss"
   "github.com/codybstrange/blog/internal/database"
   "fmt"
   "time"
@@ -10,11 +10,19 @@ import (
 )
 
 func handlerAgg(s *state, cmd command) error {
-  feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-  if err != nil {
-    return err
+  if len(cmd.args) != 1 {
+    return fmt.Errorf("Usage: agg <time_between_reqs>")
   }
-  fmt.Printf("%v", feed)
+  interval, err := time.ParseDuration(cmd.args[0])
+  if err != nil {
+    return fmt.Errorf("Error in parsing duration %w", err)
+  }
+  fmt.Printf("Collecting feeds every %v\n", interval)
+  ticker := time.NewTicker(interval)
+  for ; ; <-ticker.C{
+    scrapeFeeds(s)
+  }
+
   return nil
 }
 
@@ -71,3 +79,37 @@ func handlerListFeeds(s *state, cmd command) error {
   return nil
 }
 
+func scrapeFeeds(s *state) error {
+  nextfeed, err := s.db.GetNextFeedToFetch(context.Background())
+  if err != nil {
+    return fmt.Errorf("Issue with getting the next feed: %w", err)
+  }
+  err = s.db.MarkFeedFetched(context.Background(),
+    database.MarkFeedFetchedParams{
+      ID: nextfeed.ID,
+      LastFetchedAt: sql.NullTime{
+        Time: time.Now(),
+        Valid: true,
+      },
+    })
+  if err != nil {
+    return fmt.Errorf("Error with marking feed as fetched %w", err)
+  }
+  feed, err := s.db.GetFeedByURL(context.Background(), nextfeed.Url)
+  if err != nil {
+    return fmt.Errorf("Error in fetching feed by URL %w", err)
+  }
+  print(feed)
+  return nil
+}
+
+func print(f database.Feed) {
+  fmt.Println("Feed:")
+  fmt.Printf("ID: %v\n", f.ID)
+  fmt.Printf("Created At: %v\n", f.CreatedAt)
+  fmt.Printf("Updated At: %v\n", f.UpdatedAt)
+  fmt.Printf("Name: %v\n", f.Name)
+  fmt.Printf("URL: %v\n", f.Url)
+  fmt.Printf("User ID: %v\n", f.UserID)
+  fmt.Printf("Last Fetched At: %v\n", f.LastFetchedAt)
+}
