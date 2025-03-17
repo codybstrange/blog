@@ -4,6 +4,7 @@ import (
   "database/sql"
   "context"
   "github.com/codybstrange/blog/internal/database"
+  "github.com/codybstrange/blog/internal/rss"
   "fmt"
   "time"
   "github.com/google/uuid"
@@ -95,21 +96,57 @@ func scrapeFeeds(s *state) error {
   if err != nil {
     return fmt.Errorf("Error with marking feed as fetched %w", err)
   }
-  feed, err := s.db.GetFeedByURL(context.Background(), nextfeed.Url)
+  feed, err := rss.FeedByURL(context.Background(), nextfeed.Url)
   if err != nil {
     return fmt.Errorf("Error in fetching feed by URL %w", err)
   }
-  print(feed)
+  created_at := time.Now()
+  const longForm := "Jan 2, 2006 at 3:04pm (UTC)"
+  pubdate, _ := time.Parse(longForm, feed.PubDate)
+  params := database.CreatePostParams {
+    ID: uuid.New(),
+    CreatedAt: created_at,
+    UpdatedAt: created_at,
+    Title: feed.Title,
+    Description: feed.Description,
+    Url: feed.Link,
+    PublishedAt: pubdate,
+    FeedID: nextfeed.ID,
+  }
+  if _, err := CreatePost(context.Background(), params); err != nil {
+    return fmt.Errorf("Error in creating post: %w", err)
+  }
   return nil
 }
 
-func print(f database.Feed) {
-  fmt.Println("Feed:")
-  fmt.Printf("ID: %v\n", f.ID)
-  fmt.Printf("Created At: %v\n", f.CreatedAt)
-  fmt.Printf("Updated At: %v\n", f.UpdatedAt)
-  fmt.Printf("Name: %v\n", f.Name)
-  fmt.Printf("URL: %v\n", f.Url)
-  fmt.Printf("User ID: %v\n", f.UserID)
-  fmt.Printf("Last Fetched At: %v\n", f.LastFetchedAt)
+func browse(s *state, cmd command, user database.User) error {
+  limit := 2
+	if len(cmd.Args) == 1 {
+		if specifiedLimit, err := strconv.Atoi(cmd.Args[0]); err == nil {
+			limit = specifiedLimit
+		} else {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't get posts for user: %w", err)
+	}
+
+	fmt.Printf("Found %d posts for user %s:\n", len(posts), user.Name)
+	for _, post := range posts {
+		fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
+		fmt.Printf("--- %s ---\n", post.Title)
+		fmt.Printf("    %v\n", post.Description.String)
+		fmt.Printf("Link: %s\n", post.Url)
+		fmt.Println("=====================================")
+	}
+
+	return nil
+}
+
 }
